@@ -30,6 +30,7 @@ type Zip struct {
 }
 
 var PvmRoot = os.Getenv(PVM_ROOT)
+var PhpPath = os.Getenv(PHP_PATH)
 
 var MsgTypeMap = map[string]color.Attribute{
 	"Error":   color.FgRed,
@@ -312,6 +313,38 @@ func UninstallPhpVersion(version string) error {
 		return fmt.Errorf("failed to uninstall PHP v%s: %v", version, err)
 	}
 	return nil
+}
+
+// SwitchToVersion 切换到指定版本
+func SwitchToVersion(version string) error {
+	targetDir := filepath.Join(PvmRoot, fmt.Sprintf("v%s", version))
+	if hasPermission() {
+		os.Remove(PhpPath)
+		if err := os.Symlink(targetDir, PhpPath); err != nil {
+			return err
+		}
+		return nil
+	} else {
+		uacRun("pvm", "use", version)
+	}
+	return nil
+}
+
+// 是否具有管理员权限
+func hasPermission() bool {
+	if _, err := os.Open("\\\\.\\PHYSICALDRIVE0"); err != nil {
+		return false
+	}
+	return true
+}
+
+// 请求管理员权限运行程序
+func uacRun(command ...string) {
+	//This executable file comes from https://jianqiezhushou.com/
+	//Original author https://jpassing.com/2007/12/08/launch-elevated-processes-from-the-command-line/
+	cmd := exec.Command("elevate.exe", "-k")
+	cmd.Args = append(cmd.Args, command...)
+	cmd.Run()
 }
 
 // 下载composer installer

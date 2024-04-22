@@ -10,6 +10,8 @@ const (
 
 	PVM_ROOT = "PVM_ROOT"
 
+	PHP_PATH = "PHP_PATH"
+
 	RELEASES = "https://windows.php.net/downloads/releases/releases.json"
 
 	DOWNLOAD = "https://windows.php.net/downloads/releases/"
