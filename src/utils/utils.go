@@ -301,6 +301,19 @@ func InstallComposer(version string) error {
 	return nil
 }
 
+// UninstallPhpVersion 卸载PHP版本
+func UninstallPhpVersion(version string) error {
+	//版本是否存在
+	if _, err := os.Stat(filepath.Join(PvmRoot, "v"+version)); err != nil {
+		return fmt.Errorf("PHP v%s does not exist", version)
+	}
+	// 卸载版本
+	if err := os.RemoveAll(filepath.Join(PvmRoot, "v"+version)); err != nil {
+		return fmt.Errorf("failed to uninstall PHP v%s: %v", version, err)
+	}
+	return nil
+}
+
 // 下载composer installer
 func downloadComposer(installer string) error {
 	resp, err := http.Get(COMPOSER)
