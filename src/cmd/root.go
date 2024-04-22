@@ -5,7 +5,9 @@ Copyright © 2024 UnreadCode <i@unreadcode.com>
 package cmd
 
 import (
+	"fmt"
 	"os"
+	"pvm/utils"
 
 	"github.com/spf13/cobra"
 )
@@ -35,7 +37,7 @@ func init() {
 func rootRun(cmd *cobra.Command, args []string) {
 	version, _ := cmd.Flags().GetBool("version")
 	if version {
-
+		utils.PrintMsg(fmt.Sprintf("Version %s", utils.VERSION), "Info", 0)
 	}
 	cmd.Help()
 }
