@@ -6,8 +6,10 @@ Copyright © 2024 UnreadCode <i@unreadcode.com>
 package utils
 
 import (
+	"archive/zip"
 	"encoding/json"
 	"fmt"
+	"github.com/cheggaaa/pb/v3"
 	"github.com/fatih/color"
 	"io"
 	"net/http"
@@ -144,6 +146,237 @@ func GetArch() string {
 		arch = "x64"
 	}
 	return arch
+}
+
+// IsInstalled 给定的版本是否已安装
+func IsInstalled(version string) bool {
+	installed, _ := GetInstalledVersions()
+	for _, v := range installed {
+		if v == fmt.Sprintf("v%s", version) {
+			return true
+		}
+	}
+	return false
+}
+
+// Download 下载PHP版本
+func Download(downloadUrl string, version string) (string, error) {
+	if _, err := os.Stat(PvmRoot); os.IsNotExist(err) {
+		// 创建目录
+		if err := os.MkdirAll(PvmRoot, os.ModePerm); err != nil {
+			return "", err
+		}
+	}
+	PrintMsg(fmt.Sprintf("Downloading PHP v%s...", version), "Info", 888)
+	resp, err := http.Get(downloadUrl)
+	if err != nil {
+		return "", err
+	}
+
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			return
+		}
+	}(resp.Body)
+
+	tempDir := os.TempDir()
+	fileName := fmt.Sprintf("download_php_v%s.zip", version)
+	tmpFile, err := os.CreateTemp(tempDir, fileName)
+	if err != nil {
+		return "", err
+	}
+
+	defer func(tmpFile *os.File) {
+		err := tmpFile.Close()
+		if err != nil {
+			return
+		}
+	}(tmpFile)
+
+	color.Set(color.FgCyan)
+	// 创建进度条
+	bar := pb.Full.Start64(resp.ContentLength)
+	bar.Set(pb.Bytes, true)
+	bar.Start()
+	reader := bar.NewProxyReader(resp.Body)
+	if _, err = io.Copy(tmpFile, reader); err != nil {
+		return "", err
+	}
+	bar.Finish()
+	color.Unset()
+
+	return tmpFile.Name(), nil
+}
+
+// Unzip 解压PHP版本
+func Unzip(zipfilePath string, version string) error {
+	archive, err := zip.OpenReader(zipfilePath)
+	if err != nil {
+		return err
+	}
+	defer func(archive *zip.ReadCloser) {
+		err := archive.Close()
+		if err != nil {
+			return
+		}
+	}(archive)
+	// 解压目标目录
+	targetDir := filepath.Join(PvmRoot, "v"+version)
+	if _, err := os.Stat(targetDir); err == nil {
+		return fmt.Errorf("PHP v%s already exists", version)
+	}
+
+	for _, item := range archive.File {
+		filePath := filepath.Join(targetDir, item.Name)
+
+		if err := os.MkdirAll(filepath.Dir(filePath), os.ModePerm); err != nil {
+			return err
+		}
+
+		if item.FileInfo().IsDir() {
+			err := os.MkdirAll(filePath, os.ModePerm)
+			if err != nil {
+				return err
+			}
+			continue
+		}
+
+		file, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, item.Mode())
+		if err != nil {
+			return err
+		}
+
+		fileInArchive, err := item.Open()
+		if err != nil {
+			return err
+		}
+
+		if _, err := io.Copy(file, fileInArchive); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// CopyIni 复制ini文件
+func CopyIni(version string) error {
+	iniFilePath := filepath.Join(PvmRoot, "v"+version, "php.ini")
+	productionIniFilePath, err := os.ReadFile(iniFilePath + "-production") //php.ini-production
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(iniFilePath, productionIniFilePath, os.ModePerm); err != nil {
+		return err
+	}
+	return nil
+}
+
+// InstallComposer 安装composer
+func InstallComposer(version string) error {
+	versionPath := filepath.Join(PvmRoot, "v"+version)
+	installer := filepath.Join(versionPath, "installer")
+
+	//下载composer installer
+	if err := downloadComposer(installer); err != nil {
+		return err
+	}
+	extensionDir := filepath.Join(versionPath, "ext")
+	phpExe := filepath.Join(versionPath, "php.exe")
+	// 执行安装composer命令
+	cmd := exec.Command(phpExe, "-d", fmt.Sprint("extension_dir=", extensionDir), "-d", "extension=openssl", installer)
+	cmd.Dir = versionPath
+	if err := cmd.Run(); err != nil {
+		return err
+	}
+	// 删除安装器
+	if err := os.Remove(installer); err != nil {
+		return err
+	}
+	//composer执行脚本
+	err := addComposerScript(versionPath)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// 下载composer installer
+func downloadComposer(installer string) error {
+	resp, err := http.Get(COMPOSER)
+	if err != nil {
+		return err
+	}
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			return
+		}
+	}(resp.Body)
+	// 创建文件
+	file, err := os.Create(installer)
+	if err != nil {
+		return err
+	}
+	defer func(file *os.File) {
+		err := file.Close()
+		if err != nil {
+			return
+		}
+	}(file)
+	// 写入文件
+	if _, err = io.Copy(file, resp.Body); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// 添加composer执行脚本
+func addComposerScript(versionPath string) error {
+	// 创建composer.bat文件
+	composerBat := filepath.Join(versionPath, "composer.bat")
+	if _, err := os.Stat(composerBat); err == nil {
+		if _, err := os.Create(composerBat); err != nil {
+			return err
+		}
+	}
+	composerBatContent := `
+@echo OFF
+:: in case DelayedExpansion is on and a path contains ! 
+setlocal DISABLEDELAYEDEXPANSION
+php "%~dp0composer.phar" %*
+`
+	if err := os.WriteFile(composerBat, []byte(composerBatContent), os.ModePerm); err != nil {
+		return err
+	}
+
+	composerShell := filepath.Join(versionPath, "composer")
+	if _, err := os.Stat(composerShell); err == nil {
+		if _, err := os.Create(composerShell); err != nil {
+			return err
+		}
+	}
+	composerShellContent := `
+#!/bin/sh
+
+dir=$(cd "${0%[/\\]*}" > /dev/null; pwd)
+
+if [ -d /proc/cygdrive ]; then
+    case $(which php) in
+        $(readlink -n /proc/cygdrive)/*)
+            # We are in Cygwin using Windows php, so the path must be translated
+            dir=$(cygpath -m "$dir");
+            ;;
+    esac
+fi
+
+php "${dir}/composer.phar" "$@"
+`
+	if err := os.WriteFile(composerShell, []byte(composerShellContent), os.ModePerm); err != nil {
+		return err
+	}
+	return nil
 }
 
 // 判断给定的路径是否表示有效的PHP版本

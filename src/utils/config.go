@@ -13,4 +13,6 @@ const (
 	RELEASES = "https://windows.php.net/downloads/releases/releases.json"
 
 	DOWNLOAD = "https://windows.php.net/downloads/releases/"
+
+	COMPOSER = "https://getcomposer.org/installer"
 )
