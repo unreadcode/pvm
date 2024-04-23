@@ -23,7 +23,7 @@ AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
-DefaultDirName={commonpf}\{#MyAppName}
+DefaultDirName={userappdata}\{#MyAppName}
 DisableDirPage=no
 ChangesAssociations=yes
 DefaultGroupName={#MyAppName}
@@ -94,7 +94,7 @@ begin
   'Select PHP Path', 'Where is PHP installed?',
   'Please select PHP installation directory.', False, '');
   PhpPathPage.Add('This directory will automatically be added to your system path.');
-  PhpPathPage.Values[0] := ExpandConstant('{commonpf}\php');
+  PhpPathPage.Values[0] := ExpandConstant('{userappdata}\php');
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);

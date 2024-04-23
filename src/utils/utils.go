@@ -236,8 +236,7 @@ func Unzip(zipfilePath string, version string) error {
 		}
 
 		if item.FileInfo().IsDir() {
-			err := os.MkdirAll(filePath, os.ModePerm)
-			if err != nil {
+			if err := os.MkdirAll(filePath, os.ModePerm); err != nil {
 				return err
 			}
 			continue
@@ -275,18 +274,14 @@ func CopyIni(version string) error {
 
 // InstallComposer 安装composer
 func InstallComposer(version string) error {
-	versionPath := filepath.Join(PvmRoot, "v"+version)
-	installer := filepath.Join(versionPath, "installer")
-
-	//下载composer installer
-	if err := downloadComposer(installer); err != nil {
-		return err
-	}
-	extensionDir := filepath.Join(versionPath, "ext")
-	phpExe := filepath.Join(versionPath, "php.exe")
+	PrintMsg("install composer...", "Info", 888)
+	phpPath := filepath.Join(PvmRoot, "v"+version)
+	extensionDir := filepath.Join(phpPath, "ext")
+	phpExe := filepath.Join(phpPath, "php.exe")
+	installer := filepath.Join(PvmRoot, "installer")
 	// 执行安装composer命令
 	cmd := exec.Command(phpExe, "-d", fmt.Sprint("extension_dir=", extensionDir), "-d", "extension=openssl", installer)
-	cmd.Dir = versionPath
+	cmd.Dir = PvmRoot
 	if err := cmd.Run(); err != nil {
 		return err
 	}
@@ -295,8 +290,7 @@ func InstallComposer(version string) error {
 		return err
 	}
 	//composer执行脚本
-	err := addComposerScript(versionPath)
-	if err != nil {
+	if err := addComposerScript(); err != nil {
 		return err
 	}
 	return nil
@@ -347,41 +341,10 @@ func uacRun(command ...string) {
 	cmd.Run()
 }
 
-// 下载composer installer
-func downloadComposer(installer string) error {
-	resp, err := http.Get(COMPOSER)
-	if err != nil {
-		return err
-	}
-	defer func(Body io.ReadCloser) {
-		err := Body.Close()
-		if err != nil {
-			return
-		}
-	}(resp.Body)
-	// 创建文件
-	file, err := os.Create(installer)
-	if err != nil {
-		return err
-	}
-	defer func(file *os.File) {
-		err := file.Close()
-		if err != nil {
-			return
-		}
-	}(file)
-	// 写入文件
-	if _, err = io.Copy(file, resp.Body); err != nil {
-		return err
-	}
-
-	return nil
-}
-
 // 添加composer执行脚本
-func addComposerScript(versionPath string) error {
+func addComposerScript() error {
 	// 创建composer.bat文件
-	composerBat := filepath.Join(versionPath, "composer.bat")
+	composerBat := filepath.Join(PvmRoot, "composer.bat")
 	if _, err := os.Stat(composerBat); err == nil {
 		if _, err := os.Create(composerBat); err != nil {
 			return err
@@ -397,7 +360,7 @@ php "%~dp0composer.phar" %*
 		return err
 	}
 
-	composerShell := filepath.Join(versionPath, "composer")
+	composerShell := filepath.Join(PvmRoot, "composer")
 	if _, err := os.Stat(composerShell); err == nil {
 		if _, err := os.Create(composerShell); err != nil {
 			return err
@@ -450,4 +413,14 @@ func parsePHPVersion(line string) string {
 		return match[1]
 	}
 	return "unknown"
+}
+
+// HasComposer 是否安装了composer
+func HasComposer() bool {
+	cmd := exec.Command("composer", "--version")
+	_, err := cmd.CombinedOutput()
+	if err == nil {
+		return true
+	}
+	return false
 }
