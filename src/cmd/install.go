@@ -61,14 +61,6 @@ func install(version string) {
 		utils.PrintMsg("Failed to unzip PHP release.", "Error", 1)
 	}
 
-	// 是否安装了composer
-	if !utils.HasComposer() {
-		// 安装composer
-		if err := utils.InstallComposer(version); err != nil {
-			utils.PrintMsg("Failed to install Composer.", "Error", 1)
-		}
-	}
-
 	if err = utils.CopyIni(version); err != nil {
 		utils.PrintMsg("Failed to copy php.ini.", "Error", 1)
 	}

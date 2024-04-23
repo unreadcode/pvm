@@ -272,30 +272,6 @@ func CopyIni(version string) error {
 	return nil
 }
 
-// InstallComposer 安装composer
-func InstallComposer(version string) error {
-	PrintMsg("install composer...", "Info", 888)
-	phpPath := filepath.Join(PvmRoot, "v"+version)
-	extensionDir := filepath.Join(phpPath, "ext")
-	phpExe := filepath.Join(phpPath, "php.exe")
-	installer := filepath.Join(PvmRoot, "installer")
-	// 执行安装composer命令
-	cmd := exec.Command(phpExe, "-d", fmt.Sprint("extension_dir=", extensionDir), "-d", "extension=openssl", installer)
-	cmd.Dir = PvmRoot
-	if err := cmd.Run(); err != nil {
-		return err
-	}
-	// 删除安装器
-	if err := os.Remove(installer); err != nil {
-		return err
-	}
-	//composer执行脚本
-	if err := addComposerScript(); err != nil {
-		return err
-	}
-	return nil
-}
-
 // UninstallPhpVersion 卸载PHP版本
 func UninstallPhpVersion(version string) error {
 	//版本是否存在
@@ -341,53 +317,6 @@ func uacRun(command ...string) {
 	cmd.Run()
 }
 
-// 添加composer执行脚本
-func addComposerScript() error {
-	// 创建composer.bat文件
-	composerBat := filepath.Join(PvmRoot, "composer.bat")
-	if _, err := os.Stat(composerBat); err == nil {
-		if _, err := os.Create(composerBat); err != nil {
-			return err
-		}
-	}
-	composerBatContent := `
-@echo OFF
-:: in case DelayedExpansion is on and a path contains ! 
-setlocal DISABLEDELAYEDEXPANSION
-php "%~dp0composer.phar" %*
-`
-	if err := os.WriteFile(composerBat, []byte(composerBatContent), os.ModePerm); err != nil {
-		return err
-	}
-
-	composerShell := filepath.Join(PvmRoot, "composer")
-	if _, err := os.Stat(composerShell); err == nil {
-		if _, err := os.Create(composerShell); err != nil {
-			return err
-		}
-	}
-	composerShellContent := `
-#!/bin/sh
-
-dir=$(cd "${0%[/\\]*}" > /dev/null; pwd)
-
-if [ -d /proc/cygdrive ]; then
-    case $(which php) in
-        $(readlink -n /proc/cygdrive)/*)
-            # We are in Cygwin using Windows php, so the path must be translated
-            dir=$(cygpath -m "$dir");
-            ;;
-    esac
-fi
-
-php "${dir}/composer.phar" "$@"
-`
-	if err := os.WriteFile(composerShell, []byte(composerShellContent), os.ModePerm); err != nil {
-		return err
-	}
-	return nil
-}
-
 // 判断给定的路径是否表示有效的PHP版本
 func isValidPhpVersion(path string) bool {
 	dirName := filepath.Base(path)
@@ -413,14 +342,4 @@ func parsePHPVersion(line string) string {
 		return match[1]
 	}
 	return "unknown"
-}
-
-// HasComposer 是否安装了composer
-func HasComposer() bool {
-	cmd := exec.Command("composer", "--version")
-	_, err := cmd.CombinedOutput()
-	if err == nil {
-		return true
-	}
-	return false
 }
